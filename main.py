@@ -1,27 +1,32 @@
 import sqlite3
 from enum import Enum
 from getpass import getpass
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
+
+hasher = PasswordHasher()
 
 # Menu 
 class MenuOption(Enum):
-    REGESTER = 1
-    LOGIN = 2
-    RESET_PW = 3
-    EXIT = 4
+    LOGIN = "1"
+    FORGOT_LOGIN = "2"
+    REGISTER = "3"
+    EXIT = "4"
 
-def input(prompt, lower, upper):
-    choice = input(prompt)
-    if choice < lower or choice > upper:
-        return 0
-    else:
-        return choice
+class WrongUsername(Enum):
+    RETRY_USERNAME = "1"
+    BACK = "2"
+
+class WrongPassword(Enum):
+    RETRY_PASSWORD = "1"
+    BACK = "2"
 
 # Database 
 def createTables():
     connection = sqlite3.connect("data/userData.db")
     try:
         connection.execute("""
-        CREATE TABLE IF NOT EXIST userData 
+        CREATE TABLE IF NOT EXISTS userData
         (
             id INTEGER PRIMARY KEY, 
             email TEXT NOT NULL UNIQUE,
@@ -30,10 +35,10 @@ def createTables():
             role TEXT NOT NULL DEFAULT "user"
         )
         """)
-        connection.commit
+        connection.commit()
 
     finally:
-        connection.close
+        connection.close()
 
 # user creation
 class user():
@@ -48,23 +53,27 @@ def createUser():
     username = input("Username: ")
     
     while True:
-        pw = input("Password: ") 
+        pw = getpass("Password: ") 
+
         if pw is None:
-            print("Enter a password.")
-        elif pw is not None:
-            pwCheck = input("Enter password again to confirm: ")
+            getpass("Enter a password.")
+
+        else:
+            pwCheck = getpass("Enter password again to confirm: ")
+
+            while pw != pwCheck:
+                pwCheck = getpass("Enter password again to confirm: ")
             break
 
-    pwHash = hash(pw)
-
+    pwHash = hasher.hash(pw)
     return user(email, username, pwHash, "user")
 
 def saveUser(user):
     connection = sqlite3.connect("data/userData.db")
     try:
         connection.execute(
-            "INSERT INTO users (email, username, pw) VALUES (?, ?, ?)",
-            (user.email, user.usermame, user.pwHash) 
+            "INSERT INTO userData (email, username, pw) VALUES (?, ?, ?)",
+            (user.email, user.username, user.pw) 
         )
         connection.commit()
 
@@ -75,26 +84,96 @@ def saveUser(user):
 def printMenu():
     print("----- Login -----")
     print("1. Login")
-    print("2. Register")
-    print("3. Forgot Password?")
+    print("2. Forgot Password?")
+    print("3. Register")
     print("4. Exit")
 
 # Option Functions
+
+# Option 1 (Login)
+def verify_pws(hashed_pw, pwIn):
+    try:
+        return hasher.verify(hashed_pw, pwIn)
+    except VerifyMismatchError:
+        return False
+    
+def login():
+    connection = sqlite3.connect("data/userData.db")
+
+    try:
+        # Checks if username is linked to a valid account
+        usernameIn = input("Username: ")
+
+        userCheck = connection.execute(
+            "SELECT username FROM userData WHERE username = ?",
+            (usernameIn,)
+        ).fetchone()
+
+        while userCheck is None:
+            print("Invalid username. Try again")
+
+            print("1. Retry username")
+            print("2. Back")
+            choice = input("Enter an option: ")
+
+            match choice:
+                case WrongUsername.RETRY_USERNAME.value:
+                    usernameIn = input("Username: ")
+                    userCheck = connection.execute(
+                        "SELECT username FROM userData WHERE username = ?",
+                        (usernameIn,)
+                    ).fetchone
+
+                case WrongUsername.BACK.value:
+                    return
+
+                case _:
+                    print("invalid option")
+
+        # password check
+        pwIn = getpass("Password: ")
+
+        pwCheck = connection.execute(
+            "SELECT pw FROM userData WHERE username = ?",
+            (usernameIn,)
+        ).fetchone()
+        
+        while not verify_pws(pwCheck[0], pwIn):
+            print("Incorrect password. Try again")
+        
+            print("1. Retry password")
+            print("2. Back")
+
+            choice = input("Enter an option: ")
+        
+            match choice:
+                case WrongPassword.RETRY_PASSWORD.value:
+                    pwIn = getpass("Password: ")
+        
+                case WrongPassword.BACK.value:
+                    return
+        
+                case _:
+                    print("invalid option")
+
+        print("success.")
+
+    finally:
+            connection.close()
+
+# Option 2 (Forget Password)
+def forgotLogin():
+    print("")
+
+# Option 3 (Register)
 def register():
     user = createUser()
     saveUser(user)
 
-def login():
-    usernameIn = input("Username: ")
-    pwIn = input("Password: ")
-
-def resetPw():
-    email = input("Enter email for recovery")
-
-
 # driver
 def main():
 
+    # Creates the tables in the db
     createTables()
 
     while True:
@@ -103,20 +182,21 @@ def main():
         option = input("Choose an option: ")
 
         match option:
-            case MenuOption.REGISTER.value:
-                register()
 
             case MenuOption.LOGIN.value:
                 login()
 
-            case MenuOption.RESET_PW.value:
-               resetPw()
+            case MenuOption.FORGOT_LOGIN.value:
+               forgotLogin()
+
+            case MenuOption.REGISTER.value:
+                register()
 
             case MenuOption.EXIT.value:
                 break
 
             case _:
-                print("Invalid option")
+                print("Invalid option.")
 
 if __name__ == "__main__":
     main()
