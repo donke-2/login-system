@@ -7,6 +7,26 @@ from argon2.exceptions import VerifyMismatchError
 
 hasher = PasswordHasher()
 
+import time
+
+# Constants 
+MAX_ATTEMPS = 5
+
+
+# Global variables
+failed_attemps = 0
+
+def record_failure():
+    global failed_attemps
+    failed_attemps += 1
+
+locked_until = 0
+
+def start_lockout():
+    global locked_until, failed_attemps 
+    locked_until = int(time.time()) + (60 * 10)
+    failed_attemps = 0
+
 
 # Menu options
 class MenuOption(Enum):
@@ -26,11 +46,11 @@ class WrongPassword(Enum):
 
 # Database
 def create_tables():
-    connection = sqlite3.connect("data/userData.db")
+    connection = sqlite3.connect("data/user_data.db")
 
     try:
         connection.execute("""
-            CREATE TABLE IF NOT EXISTS userData (
+            CREATE TABLE IF NOT EXISTS user_data (
                 id INTEGER PRIMARY KEY,
                 email TEXT NOT NULL UNIQUE,
                 username TEXT NOT NULL UNIQUE,
@@ -50,7 +70,6 @@ class User:
         self.username = username
         self.password_hash = password_hash
         self.role = role
-
 
 def create_user():
     email = input("Email: ")
@@ -73,13 +92,12 @@ def create_user():
     password_hash = hasher.hash(password)
     return User(email, username, password_hash, "user")
 
-
 def save_user(user):
-    connection = sqlite3.connect("data/userData.db")
+    connection = sqlite3.connect("data/user_data.db")
 
     try:
         connection.execute(
-            "INSERT INTO userData (email, username, password) VALUES (?, ?, ?)",
+            "INSERT INTO user_data (email, username, password) VALUES (?, ?, ?)",
             (user.email, user.username, user.password_hash),
         )
         connection.commit()
@@ -103,16 +121,23 @@ def verify_password(password_hash, password):
     except VerifyMismatchError:
         return False
 
-
 def login():
-    connection = sqlite3.connect("data/userData.db")
+    global failed_attemps
+
+    time_left = locked_until - int(time.time())
+
+    if time_left > 0:
+        print(f"Try again in {time_left} seconds.")
+        return
+
+    connection = sqlite3.connect("data/user_data.db")
 
     try:
         username = input("Username: ")
 
         # Fetch the password hash for the entered username.
         user_row = connection.execute(
-            "SELECT password FROM userData WHERE username = ?",
+            "SELECT password FROM user_data WHERE username = ?",
             (username,),
         ).fetchone()
 
@@ -126,7 +151,7 @@ def login():
                 case WrongUsername.RETRY_USERNAME.value:
                     username = input("Username: ")
                     user_row = connection.execute(
-                        "SELECT password FROM userData WHERE username = ?",
+                        "SELECT password FROM user_data WHERE username = ?",
                         (username,),
                     ).fetchone()
 
@@ -137,25 +162,38 @@ def login():
                     print("Invalid option.")
 
         password_hash = user_row[0]
+
         password = getpass("Password: ")
 
         while not verify_password(password_hash, password):
-            print("Incorrect password. Try again.")
-            print("1. Retry password")
-            print("2. Back")
-            choice = input("Enter an option: ")
+            record_failure()
 
-            match choice:
-                case WrongPassword.RETRY_PASSWORD.value:
-                    password = getpass("Password: ")
+            if failed_attemps >= MAX_ATTEMPS:
+                start_lockout()
+                print("Too many attemps. Try again later.")
+                return
 
-                case WrongPassword.BACK.value:
-                    return
+            else:
+                print("Incorrect password. Try again.")
+                print("1. Retry password")
+                print("2. Back")
 
-                case _:
+                choice = input("Enter an option: ")
+
+                while choice not in ("1", "2"):
                     print("Invalid option.")
+                    choice = input("Enter an option: ")
 
+                match choice:
+                    case WrongPassword.RETRY_PASSWORD.value:
+                        password = getpass("Password: ")
+
+                    case WrongPassword.BACK.value:
+                        return
+
+        failed_attemps = 0
         print("Success.")
+
     finally:
         connection.close()
 
