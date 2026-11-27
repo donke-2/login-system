@@ -136,7 +136,7 @@ def login():
                 user_menu(username)
 
             elif role[0] == "admin":
-                admin_menu()
+                admin_menu(username)
 
             else:
                 print(f"Unknown role: {role}")
