@@ -66,23 +66,23 @@ The test files were written by Claude (Anthropic) and reviewed by me.
 
 ```
 login-system/
-â”œâ”€â”€ main.py            # Entry point: creates tables, starts the main menu
-â”œâ”€â”€ auth.py            # Argon2id hashing and verification
-â”œâ”€â”€ database.py        # Table creation, saving users, logging attempts
-â”œâ”€â”€ conftest.py        # Lets pytest import the project's modules
-â”œâ”€â”€ requirements.txt   # Python dependencies
-â”œâ”€â”€ actions/
-â”‚   â”œâ”€â”€ login.py       # Login flow, retries and cooldown
-â”‚   â”œâ”€â”€ register.py    # Registration flow
-â”‚   â””â”€â”€ reset_password.py
-â”œâ”€â”€ menus/
-â”‚   â”œâ”€â”€ main_menu.py   # Login / Forgot Password / Register / Exit
-â”‚   â”œâ”€â”€ user_menu.py   # Menu for standard users
-â”‚   â””â”€â”€ admin_menu.py  # Menu for admins, including the login log
-â””â”€â”€ tests/
-    â”œâ”€â”€ test_auth.py
-    â”œâ”€â”€ test_database.py
-    â””â”€â”€ test_lockout.py
+├── main.py            # Entry point: creates tables, starts the main menu
+├── auth.py            # Argon2id hashing and verification
+├── database.py        # Table creation, saving users, logging attempts
+├── pyproject.toml     # pytest settings
+├── requirements.txt   # Python dependencies
+├── actions/
+│   ├── login.py       # Login flow, retries and cooldown
+│   ├── register.py    # Registration flow
+│   └── reset_password.py
+├── menus/
+│   ├── main_menu.py   # Login / Forgot Password / Register / Exit
+│   ├── user_menu.py   # Menu for standard users
+│   └── admin_menu.py  # Menu for admins, including the login log
+└── tests/
+    ├── test_auth.py
+    ├── test_database.py
+    └── test_lockout.py
 ```
 
 ## Database
